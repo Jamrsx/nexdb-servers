@@ -50,7 +50,7 @@ jobs:
         if: steps.want.outputs.yes == 'true'
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
-          versions="$(tr -d '' < versions.txt | awk -v id='${{ matrix.program }}' '$1 == id { $1 = ""; print }')"
+          versions="$(tr -d '\r' < versions.txt | awk -v id='${{ matrix.program }}' '$1 == id { $1 = ""; print }')"
           for v in $versions; do
             echo "::group::${{ matrix.program }} $v"
             bash scripts/build.sh ${{ matrix.program }} "$v"
