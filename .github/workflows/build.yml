@@ -56,8 +56,17 @@ jobs:
       - name: Build tools
         if: steps.want.outputs.yes == 'true'
         run: |
-          brew install cmake ninja bison pkg-config autoconf automake libtool
+          brew install cmake ninja bison pkg-config autoconf automake libtool ccache
           if [ -n "${{ matrix.target }}" ]; then softwareupdate --install-rosetta --agree-to-license || true; fi
+
+      # Compiled files are kept between runs, so a rerun of MySQL only compiles what changed.
+      # restore/save as two steps: the plain cache action saves nothing when the build fails.
+      - uses: actions/cache/restore@v4
+        if: steps.want.outputs.yes == 'true' && matrix.program == 'mysql'
+        with:
+          path: ~/ccache
+          key: ccache-${{ matrix.program }}-${{ matrix.runner }}-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.program }}-${{ matrix.runner }}-${{ matrix.target }}-
 
       - name: Build every version
         if: steps.want.outputs.yes == 'true'
@@ -65,6 +74,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TARGET_ARCH: ${{ matrix.target }}
+          CCACHE_DIR: /Users/runner/ccache
+          CCACHE_MAXSIZE: 3G
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           versions="$(tr -d '\r' < versions.txt | awk -v id='${{ matrix.program }}' '$1 == id { $1 = ""; print }')"
@@ -83,6 +94,12 @@ jobs:
             echo "::endgroup::"
           done
           exit $failed
+
+      - uses: actions/cache/save@v4
+        if: ${{ always() && steps.want.outputs.yes == 'true' && matrix.program == 'mysql' }}
+        with:
+          path: ~/ccache
+          key: ccache-${{ matrix.program }}-${{ matrix.runner }}-${{ matrix.target }}-${{ github.run_id }}
 
       # Versions that built are kept even when another version of the same program failed.
       - uses: actions/upload-artifact@v4
