@@ -107,9 +107,18 @@ build_node() {
   (cd "$src" && ./configure --prefix="$stage" && make -j"$JOBS" && make install)
 }
 
+# Mailpit from source with Go 1.25, the last Go whose programs run on macOS 12 (Go 1.26 needs
+# macOS 13, and so does Mailpit's official build). Its go.mod line is lowered to match.
 build_mailpit() {
-  local gochip; gochip="$([ "$CHIP" = arm64 ] && echo arm64 || echo amd64)"
-  tar -xzf "$(fetch "https://github.com/axllent/mailpit/releases/download/v$version/mailpit-darwin-$gochip.tar.gz" "$WORK/src/mailpit-$version-$gochip.tar.gz")" -C "$stage"
+  local gochip go src; gochip="$([ "$CHIP" = arm64 ] && echo arm64 || echo amd64)"
+  go="$WORK/go-${GO_VERSION:-1.25.14}"
+  if [ ! -x "$go/bin/go" ]; then
+    mkdir -p "$go"
+    tar -xzf "$(fetch "https://go.dev/dl/go${GO_VERSION:-1.25.14}.darwin-$gochip.tar.gz")" -C "$go" --strip-components 1
+  fi
+  src="$(unpack "$(fetch "https://github.com/axllent/mailpit/archive/refs/tags/v$version.tar.gz" "$WORK/src/mailpit-src-$version.tar.gz")")"
+  (cd "$src"     && sed -i '' -E 's/^go 1\.[0-9]+(\.[0-9]+)?$/go 1.25.0/; /^toolchain /d' go.mod     && npm ci --no-audit --no-fund && npm run package     && CGO_ENABLED=0 GOTOOLCHAIN=local "$go/bin/go" build -trimpath          -ldflags "-s -w -X github.com/axllent/mailpit/config.Version=v$version" -o "$stage/mailpit")
+  cp "$src/LICENSE" "$stage/" 2>/dev/null || true
 }
 
 case "$id" in

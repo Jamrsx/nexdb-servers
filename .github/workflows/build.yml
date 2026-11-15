@@ -51,17 +51,28 @@ jobs:
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           versions="$(tr -d '\r' < versions.txt | awk -v id='${{ matrix.program }}' '$1 == id { $1 = ""; print }')"
+          failed=0
           for v in $versions; do
             echo "::group::${{ matrix.program }} $v"
-            bash scripts/build.sh ${{ matrix.program }} "$v"
+            # Logs need a GitHub sign-in to read; the last lines of a failure become a public note.
+            if ! bash scripts/build.sh ${{ matrix.program }} "$v" > "build-$v.log" 2>&1; then
+              cat "build-$v.log"
+              tail -40 "build-$v.log" | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' | sed 's/^/::error title=${{ matrix.program }} '"$v"' failed::/'
+              echo
+              failed=1
+            else
+              tail -5 "build-$v.log"
+            fi
             echo "::endgroup::"
           done
+          exit $failed
 
+      # Versions that built are kept even when another version of the same program failed.
       - uses: actions/upload-artifact@v4
-        if: steps.want.outputs.yes == 'true'
+        if: ${{ always() && steps.want.outputs.yes == 'true' }}
         with:
           name: ${{ matrix.program }}-${{ matrix.runner }}
-          if-no-files-found: error
+          if-no-files-found: warn
           path: |
             out/*.tar.xz
             out/*.tar.xz.sha256
