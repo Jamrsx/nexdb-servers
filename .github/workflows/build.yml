@@ -1,5 +1,5 @@
 # Builds the server programs NexDB installs on Macs: every version in versions.txt, for Intel
-# and Apple Silicon, all running on macOS 12 and newer. Starts only by hand.
+# and Apple Silicon, all running on macOS 13 and newer. Starts only by hand.
 # When everything chosen has built, the files are published as one GitHub release.
 
 name: Build Mac servers
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 env:
-  MACOSX_DEPLOYMENT_TARGET: "12.0"
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
 
 jobs:
   build:
@@ -98,4 +98,4 @@ jobs:
           tag="mac-servers-$(date -u +%Y%m%d-%H%M)"
           gh release create "$tag" files/* --repo "${{ github.repository }}" \
             --title "Mac servers $(date -u +%Y-%m-%d)" \
-            --notes "Built for macOS 12+ on Intel (x64) and Apple Silicon (arm64). Add to NexDB's catalog with: python scripts/macos-servers/catalog.py add <these files> https://github.com/${{ github.repository }}/releases/download/$tag"
+            --notes "Built for macOS 13+ on Intel (x64) and Apple Silicon (arm64). Add to NexDB's catalog with: python scripts/macos-servers/catalog.py add <these files> https://github.com/${{ github.repository }}/releases/download/$tag"

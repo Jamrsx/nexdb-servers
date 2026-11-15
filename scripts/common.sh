@@ -1,11 +1,11 @@
 #!/bin/bash
 # Shared helpers for building NexDB's server programs on macOS.
 # Every program is built for the chip of the machine it runs on (Intel or Apple Silicon),
-# for macOS 12 and newer, with its libraries inside its own folder, so it runs from any
+# for macOS 13 and newer, with its libraries inside its own folder, so it runs from any
 # place NexDB unpacks it to. See docs/macos-port.md (Phase 2).
 set -euo pipefail
 
-export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-12.0}"
+export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
 ARCH="$(uname -m)"                                   # x86_64 or arm64
 CHIP="$([ "$ARCH" = arm64 ] && echo arm64 || echo x64)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -137,7 +137,7 @@ max_minos() {
 }
 
 # package ID VERSION DIR [FLOOR]: FLOOR (default the deployment target) is the oldest macOS
-# the program runs on; anything above 12.0 is written to a .minos file, so NexDB offers that
+# the program runs on; anything above the deployment target is written to a .minos file, so NexDB offers that
 # program only on Macs that new.
 package() {
   local id="$1" version="$2" dir="$3" floor="${4:-$MACOSX_DEPLOYMENT_TARGET}" name="$1-$2-macos-$CHIP"
@@ -146,6 +146,6 @@ package() {
   cp -R "$dir" "$WORK/pkg/$name"
   tar -C "$WORK/pkg" -cJf "$OUT/$name.tar.xz" "$name"
   (cd "$OUT" && shasum -a 256 "$name.tar.xz" | awk '{print $1}' > "$name.tar.xz.sha256")
-  if [ "$floor" != "12.0" ]; then echo "$floor" > "$OUT/$name.tar.xz.minos"; fi
+  if [ "$floor" != "$MACOSX_DEPLOYMENT_TARGET" ]; then echo "$floor" > "$OUT/$name.tar.xz.minos"; fi
   log "Made $OUT/$name.tar.xz ($(du -h "$OUT/$name.tar.xz" | cut -f1))"
 }

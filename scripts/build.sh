@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds one NexDB server program for this Mac's chip, for macOS 12 and newer.
+# Builds one NexDB server program for this Mac's chip, for macOS 13 and newer.
 #   scripts/macos-servers/build.sh <id> <version>
 # ids: apache nginx php mysql postgres redis node mailpit
 # Output: out/<id>-<version>-macos-<x64|arm64>.tar.xz and .sha256 (see common.sh).
@@ -80,7 +80,7 @@ build_php() {
   (cd "$spc_dir/source/php-src" && cp php.ini-development php.ini-production "$stage/" 2>/dev/null || true)
 }
 
-# MySQL from source. If the compiler refuses a C++ feature that macOS 12 lacks ("is unavailable:
+# MySQL from source. If the compiler refuses a C++ feature that macOS 13 lacks ("is unavailable:
 # introduced in macOS 13"), the next step in docs/macos-port.md is LLVM's libc++ linked statically.
 build_mysql() {
   deps_openssl_shared
@@ -97,8 +97,8 @@ build_mysql() {
   relocate "$stage" "$stage"
 }
 
-# Node and Mailpit: their official builds. When one needs a newer macOS than 12 (Node 24+
-# needs 13.5, Mailpit built with Go 1.26 needs 13), it is packaged with that floor and NexDB
+# Node and Mailpit: their official builds. When one needs a newer macOS than the floor (Node 24+
+# needs 13.5), it is packaged with that floor and NexDB
 # shows it only on Macs that new. FLOOR is set for package() below.
 FLOOR=""
 build_node() {

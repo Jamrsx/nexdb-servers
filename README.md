@@ -4,7 +4,7 @@ Build scripts for the server programs [NexDB](https://db.nexiodev.site) installs
 Apache, nginx, PHP, MySQL, PostgreSQL, Redis, Node.js and Mailpit.
 
 Each program is built from its official source (or official release) for **Intel** and
-**Apple Silicon**, to run on **macOS 12 Monterey and newer**, with its libraries inside its own
+**Apple Silicon**, to run on **macOS 13 Ventura and newer**, with its libraries inside its own
 folder. A check fails the build if any file needs a newer macOS or loads a library from outside.
 
 - `versions.txt`: the versions to build, one program per line.
