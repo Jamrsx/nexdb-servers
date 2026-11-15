@@ -93,7 +93,7 @@ build_mysql() {
   src="$(unpack "$(fetch "https://cdn.mysql.com/Downloads/MySQL-$line/mysql-$version.tar.gz")")"
   rm -rf "$bld"; mkdir -p "$bld"
   (cd "$bld" && cmake "$src" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" -DCMAKE_INSTALL_PREFIX="$stage" \
+      -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DCMAKE_INSTALL_PREFIX="$stage" \
       -DWITH_SSL="$DEPS_SHARED" -DWITH_ZLIB=bundled -DWITH_ZSTD=bundled -DWITH_LZ4=bundled \
       -DWITH_PROTOBUF=bundled -DWITH_ICU=bundled -DWITH_FIDO=bundled -DWITH_EDITLINE=bundled \
       -DWITH_UNIT_TESTS=OFF -DWITH_ROUTER=OFF -DWITH_NDB=OFF -DINSTALL_MYSQLTESTDIR= \

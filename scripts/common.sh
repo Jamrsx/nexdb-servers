@@ -6,7 +6,9 @@
 set -euo pipefail
 
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
-ARCH="$(uname -m)"                                   # x86_64 or arm64
+# TARGET_ARCH=x86_64 on an Apple Silicon runner builds for Intel (faster than Intel runners);
+# helper programs the build runs go through Rosetta.
+ARCH="${TARGET_ARCH:-$(uname -m)}"                   # x86_64 or arm64
 CHIP="$([ "$ARCH" = arm64 ] && echo arm64 || echo x64)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${WORK:-$PWD/work}"                            # sources and temporary installs
@@ -16,6 +18,7 @@ JOBS="$(sysctl -n hw.ncpu)"
 mkdir -p "$WORK/src" "$OUT" "$DEPS"
 
 export CFLAGS="-O2 -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
+if [ "$ARCH" != "$(uname -m)" ]; then CFLAGS="$CFLAGS -arch $ARCH"; fi
 export CXXFLAGS="$CFLAGS"
 # No -mmacosx-version-min in LDFLAGS: some builds pass LDFLAGS to the raw linker, which
 # rejects it. The linker reads MACOSX_DEPLOYMENT_TARGET by itself.
