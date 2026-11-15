@@ -48,6 +48,9 @@ jobs:
 
       - name: Build every version
         if: steps.want.outputs.yes == 'true'
+        # static-php-cli asks GitHub's API for ready-made parts; anonymous calls hit the hourly limit.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           export PATH="$(brew --prefix bison)/bin:$PATH"
           versions="$(tr -d '\r' < versions.txt | awk -v id='${{ matrix.program }}' '$1 == id { $1 = ""; print }')"

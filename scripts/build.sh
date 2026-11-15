@@ -41,6 +41,7 @@ build_apache() {
   (cd "$src" && ./configure --prefix="$stage" --with-included-apr --with-mpm=event \
       --enable-mods-shared=reallyall --enable-ssl --with-ssl="$DEPS" \
       --with-pcre="$DEPS/bin/pcre2-config" --disable-http2 --disable-proxy-http2 --disable-brotli \
+      --without-odbc --without-pgsql --without-mysql --without-oracle --without-freetds \
     && make -j"$JOBS" && make install)
   rm -rf "$stage/manual" "$stage/htdocs"/* "$stage/cgi-bin"/*
   relocate "$stage" "$stage"
@@ -74,8 +75,12 @@ build_php() {
     chmod +x "$spc_dir/spc"
   fi
   rm -rf "$spc_dir/buildroot" "$spc_dir/source/php-src"
-  (cd "$spc_dir" && ./spc doctor --auto-fix && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
-    && ./spc build "$PHP_EXTENSIONS" --build-cli --build-fpm --build-cgi)
+  # static-php-cli sets its own compiler flags; ours would be mixed into every library it builds.
+  # On failure its own log has the real reason, so the end of it is printed.
+  (cd "$spc_dir" && unset CFLAGS CXXFLAGS LDFLAGS && ./spc doctor --auto-fix && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
+    && ./spc build "$PHP_EXTENSIONS" --build-cli --build-fpm --build-cgi) || {
+    echo "--- static-php-cli shell log (end) ---"; tail -60 "$spc_dir/log/spc.shell.log" 2>/dev/null
+    return 1; }
   cp "$spc_dir"/buildroot/bin/php "$spc_dir"/buildroot/bin/php-fpm "$spc_dir"/buildroot/bin/php-cgi "$stage/"
   (cd "$spc_dir/source/php-src" && cp php.ini-development php.ini-production "$stage/" 2>/dev/null || true)
 }
