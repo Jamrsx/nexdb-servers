@@ -20,11 +20,12 @@ build_redis() {
 }
 
 build_postgres() {
-  deps_openssl
+  deps_openssl_shared
   local src; src="$(unpack "$(fetch "https://ftp.postgresql.org/pub/source/v$version/postgresql-$version.tar.bz2")")"
   (cd "$src" && ./configure --prefix="$stage" --with-openssl --without-icu --without-readline \
-      CPPFLAGS="-I$DEPS/include" LDFLAGS="$LDFLAGS -L$DEPS/lib" \
+      CPPFLAGS="-I$DEPS_SHARED/include" LDFLAGS="-L$DEPS_SHARED/lib" \
     && make -j"$JOBS" && make install && make -C contrib -j"$JOBS" install)
+  bundle_openssl "$stage/lib"
   relocate "$stage" "$stage"
 }
 
@@ -38,7 +39,7 @@ build_apache() {
   mv "$apr" "$src/srclib/apr"; mv "$aprutil" "$src/srclib/apr-util"
   (cd "$src" && ./configure --prefix="$stage" --with-included-apr --with-mpm=event \
       --enable-mods-shared=reallyall --enable-ssl --with-ssl="$DEPS" \
-      --with-pcre="$DEPS/bin/pcre2-config" --disable-http2 \
+      --with-pcre="$DEPS/bin/pcre2-config" --disable-http2 --disable-proxy-http2 --disable-brotli \
     && make -j"$JOBS" && make install)
   rm -rf "$stage/manual" "$stage/htdocs"/* "$stage/cgi-bin"/*
   relocate "$stage" "$stage"
@@ -72,7 +73,7 @@ build_php() {
     chmod +x "$spc_dir/spc"
   fi
   rm -rf "$spc_dir/buildroot" "$spc_dir/source/php-src"
-  (cd "$spc_dir" && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
+  (cd "$spc_dir" && ./spc doctor --auto-fix && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
     && ./spc build "$PHP_EXTENSIONS" --build-cli --build-fpm --build-cgi)
   cp "$spc_dir"/buildroot/bin/php "$spc_dir"/buildroot/bin/php-fpm "$spc_dir"/buildroot/bin/php-cgi "$stage/"
   (cd "$spc_dir/source/php-src" && cp php.ini-development php.ini-production "$stage/" 2>/dev/null || true)
@@ -81,13 +82,13 @@ build_php() {
 # MySQL from source. If the compiler refuses a C++ feature that macOS 12 lacks ("is unavailable:
 # introduced in macOS 13"), the next step in docs/macos-port.md is LLVM's libc++ linked statically.
 build_mysql() {
-  deps_openssl
+  deps_openssl_shared
   local src bld="$WORK/mysql-build-$version"
   src="$(unpack "$(fetch "https://cdn.mysql.com/Downloads/MySQL-$line/mysql-$version.tar.gz")")"
   rm -rf "$bld"; mkdir -p "$bld"
   (cd "$bld" && cmake "$src" -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" -DCMAKE_INSTALL_PREFIX="$stage" \
-      -DWITH_SSL="$DEPS" -DWITH_ZLIB=bundled -DWITH_ZSTD=bundled -DWITH_LZ4=bundled \
+      -DWITH_SSL="$DEPS_SHARED" -DWITH_ZLIB=bundled -DWITH_ZSTD=bundled -DWITH_LZ4=bundled \
       -DWITH_PROTOBUF=bundled -DWITH_ICU=bundled -DWITH_FIDO=bundled -DWITH_EDITLINE=bundled \
       -DWITH_UNIT_TESTS=OFF -DWITH_ROUTER=OFF -DWITH_NDB=OFF -DINSTALL_MYSQLTESTDIR= \
     && ninja -j"$JOBS" && ninja install)
@@ -101,6 +102,13 @@ build_node() {
   local dir; dir="$(unpack "$(fetch "https://nodejs.org/dist/v$version/node-v$version-darwin-$nchip.tar.xz")")"
   if check "$dir" >/dev/null 2>&1; then
     rm -rf "$stage"; mv "$dir" "$stage"; return
+  fi
+  # Building Node from source takes hours and newer Node needs C++ library parts macOS 12
+  # lacks, so it only happens when asked for (NODE_FROM_SOURCE=1).
+  if [ "${NODE_FROM_SOURCE:-0}" != 1 ]; then
+    echo "::error::Node $version's official Mac build needs a newer macOS than $MACOSX_DEPLOYMENT_TARGET:"
+    check "$dir" || true
+    return 1
   fi
   log "Official Node $version needs a newer macOS; building it from source (slow)"
   local src; src="$(unpack "$(fetch "https://nodejs.org/dist/v$version/node-v$version.tar.xz")")"

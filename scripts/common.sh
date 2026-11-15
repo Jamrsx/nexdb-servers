@@ -17,7 +17,9 @@ mkdir -p "$WORK/src" "$OUT" "$DEPS"
 
 export CFLAGS="-O2 -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
 export CXXFLAGS="$CFLAGS"
-export LDFLAGS="-mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
+# No -mmacosx-version-min in LDFLAGS: some builds pass LDFLAGS to the raw linker, which
+# rejects it. The linker reads MACOSX_DEPLOYMENT_TARGET by itself.
+export LDFLAGS=""
 
 OPENSSL_VERSION="${OPENSSL_VERSION:-3.5.4}"
 PCRE2_VERSION="${PCRE2_VERSION:-10.46}"
@@ -52,6 +54,25 @@ deps_openssl() {
   target="darwin64-$ARCH-cc"
   (cd "$src" && ./Configure "$target" no-shared no-tests --prefix="$DEPS" --libdir=lib \
     && make -j"$JOBS" && make install_sw)
+}
+
+# Shared OpenSSL in $DEPS_SHARED, for PostgreSQL and MySQL: PostgreSQL's client library refuses
+# static OpenSSL (it brings in exit calls) and MySQL expects shared libraries it can bundle.
+# The .dylib files are copied next to the program and found through @rpath.
+DEPS_SHARED="$WORK/deps-shared"
+deps_openssl_shared() {
+  [ -f "$DEPS_SHARED/lib/libssl.dylib" ] && return
+  log "OpenSSL $OPENSSL_VERSION (shared)"
+  local src
+  src="$(unpack "$(fetch "https://github.com/openssl/openssl/releases/download/openssl-$OPENSSL_VERSION/openssl-$OPENSSL_VERSION.tar.gz")")"
+  (cd "$src" && ./Configure "darwin64-$ARCH-cc" shared no-tests --prefix="$DEPS_SHARED" --libdir=lib \
+    && make -j"$JOBS" && make install_sw)
+}
+
+# bundle_openssl LIBDIR: copies the shared OpenSSL libraries into a program's lib folder.
+bundle_openssl() {
+  mkdir -p "$1"
+  cp "$DEPS_SHARED"/lib/libssl.*.dylib "$DEPS_SHARED"/lib/libcrypto.*.dylib "$1/"
 }
 
 # Static PCRE2 in $DEPS (Apache, nginx).
