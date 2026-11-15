@@ -18,7 +18,8 @@ JOBS="$(sysctl -n hw.ncpu)"
 mkdir -p "$WORK/src" "$OUT" "$DEPS"
 
 export CFLAGS="-O2 -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET"
-if [ "$ARCH" != "$(uname -m)" ]; then CFLAGS="$CFLAGS -arch $ARCH"; fi
+# Cross builds: bundled zstd picks its assembly by the runner's chip, not the target's, so it is off.
+if [ "$ARCH" != "$(uname -m)" ]; then CFLAGS="$CFLAGS -arch $ARCH -DZSTD_DISABLE_ASM"; fi
 export CXXFLAGS="$CFLAGS"
 # No -mmacosx-version-min in LDFLAGS: some builds pass LDFLAGS to the raw linker, which
 # rejects it. The linker reads MACOSX_DEPLOYMENT_TARGET by itself.
