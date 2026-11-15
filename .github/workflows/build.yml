@@ -76,6 +76,7 @@ jobs:
           path: |
             out/*.tar.xz
             out/*.tar.xz.sha256
+            out/*.tar.xz.minos
 
   publish:
     needs: build

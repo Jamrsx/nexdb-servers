@@ -129,12 +129,23 @@ check() {
 
 # package ID VERSION DIR: DIR becomes $OUT/ID-VERSION-macos-CHIP.tar.xz (one top folder)
 # plus a .sha256 file beside it.
+# max_minos DIR: the newest macOS any program in DIR asks for (official downloads).
+max_minos() {
+  # Scripts and other non-programs make vtool fail; that's expected, so it never stops the build.
+  { find "$1" -type f -perm -u+x -print0 | xargs -0 -n1 sh -c 'vtool -show-build "$0" 2>/dev/null || true' \
+    | awk '/minos/ {print $2}' | sort -V | tail -1; } || true
+}
+
+# package ID VERSION DIR [FLOOR]: FLOOR (default the deployment target) is the oldest macOS
+# the program runs on; anything above 12.0 is written to a .minos file, so NexDB offers that
+# program only on Macs that new.
 package() {
-  local id="$1" version="$2" dir="$3" name="$1-$2-macos-$CHIP"
-  check "$dir"
+  local id="$1" version="$2" dir="$3" floor="${4:-$MACOSX_DEPLOYMENT_TARGET}" name="$1-$2-macos-$CHIP"
+  MACOSX_DEPLOYMENT_TARGET="$floor" check "$dir"
   rm -rf "${WORK:?}/pkg/$name"; mkdir -p "$WORK/pkg"
   cp -R "$dir" "$WORK/pkg/$name"
   tar -C "$WORK/pkg" -cJf "$OUT/$name.tar.xz" "$name"
   (cd "$OUT" && shasum -a 256 "$name.tar.xz" | awk '{print $1}' > "$name.tar.xz.sha256")
+  if [ "$floor" != "12.0" ]; then echo "$floor" > "$OUT/$name.tar.xz.minos"; fi
   log "Made $OUT/$name.tar.xz ($(du -h "$OUT/$name.tar.xz" | cut -f1))"
 }

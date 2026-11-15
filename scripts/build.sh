@@ -13,7 +13,8 @@ rm -rf "$stage"; mkdir -p "$stage"
 build_redis() {
   deps_openssl
   local src; src="$(unpack "$(fetch "https://download.redis.io/releases/redis-$version.tar.gz")")"
-  (cd "$src" && make -j"$JOBS" BUILD_TLS=yes OPENSSL_PREFIX="$DEPS" MALLOC=libc)
+  # Core server only: Redis 8's optional modules (search, JSON, ...) need extra toolchains.
+  (cd "$src" && make -C src -j"$JOBS" all BUILD_TLS=yes OPENSSL_PREFIX="$DEPS" MALLOC=libc)
   mkdir -p "$stage/bin"
   cp "$src"/src/redis-server "$src"/src/redis-cli "$src"/src/redis-benchmark "$stage/bin/"
   cp "$src/redis.conf" "$stage/"
@@ -96,41 +97,30 @@ build_mysql() {
   relocate "$stage" "$stage"
 }
 
-# Node: the official build when it runs on macOS 12, else built from source.
+# Node and Mailpit: their official builds. When one needs a newer macOS than 12 (Node 24+
+# needs 13.5, Mailpit built with Go 1.26 needs 13), it is packaged with that floor and NexDB
+# shows it only on Macs that new. FLOOR is set for package() below.
+FLOOR=""
 build_node() {
-  local nchip; nchip="$([ "$CHIP" = arm64 ] && echo arm64 || echo x64)"
-  local dir; dir="$(unpack "$(fetch "https://nodejs.org/dist/v$version/node-v$version-darwin-$nchip.tar.xz")")"
-  if check "$dir" >/dev/null 2>&1; then
-    rm -rf "$stage"; mv "$dir" "$stage"; return
-  fi
-  # Building Node from source takes hours and newer Node needs C++ library parts macOS 12
-  # lacks, so it only happens when asked for (NODE_FROM_SOURCE=1).
-  if [ "${NODE_FROM_SOURCE:-0}" != 1 ]; then
-    echo "::error::Node $version's official Mac build needs a newer macOS than $MACOSX_DEPLOYMENT_TARGET:"
-    check "$dir" || true
-    return 1
-  fi
-  log "Official Node $version needs a newer macOS; building it from source (slow)"
-  local src; src="$(unpack "$(fetch "https://nodejs.org/dist/v$version/node-v$version.tar.xz")")"
-  (cd "$src" && ./configure --prefix="$stage" && make -j"$JOBS" && make install)
+  local nchip dir; nchip="$([ "$CHIP" = arm64 ] && echo arm64 || echo x64)"
+  dir="$(unpack "$(fetch "https://nodejs.org/dist/v$version/node-v$version-darwin-$nchip.tar.xz")")"
+  rm -rf "$stage"; mv "$dir" "$stage"
+  FLOOR="$(max_minos "$stage")"
 }
 
-# Mailpit from source with Go 1.25, the last Go whose programs run on macOS 12 (Go 1.26 needs
-# macOS 13, and so does Mailpit's official build). Its go.mod line is lowered to match.
 build_mailpit() {
-  local gochip go src; gochip="$([ "$CHIP" = arm64 ] && echo arm64 || echo amd64)"
-  go="$WORK/go-${GO_VERSION:-1.25.14}"
-  if [ ! -x "$go/bin/go" ]; then
-    mkdir -p "$go"
-    tar -xzf "$(fetch "https://go.dev/dl/go${GO_VERSION:-1.25.14}.darwin-$gochip.tar.gz")" -C "$go" --strip-components 1
-  fi
-  src="$(unpack "$(fetch "https://github.com/axllent/mailpit/archive/refs/tags/v$version.tar.gz" "$WORK/src/mailpit-src-$version.tar.gz")")"
-  (cd "$src"     && sed -i '' -E 's/^go 1\.[0-9]+(\.[0-9]+)?$/go 1.25.0/; /^toolchain /d' go.mod     && npm ci --no-audit --no-fund && npm run package     && CGO_ENABLED=0 GOTOOLCHAIN=local "$go/bin/go" build -trimpath          -ldflags "-s -w -X github.com/axllent/mailpit/config.Version=v$version" -o "$stage/mailpit")
-  cp "$src/LICENSE" "$stage/" 2>/dev/null || true
+  local gochip; gochip="$([ "$CHIP" = arm64 ] && echo arm64 || echo amd64)"
+  tar -xzf "$(fetch "https://github.com/axllent/mailpit/releases/download/v$version/mailpit-darwin-$gochip.tar.gz" "$WORK/src/mailpit-$version-$gochip.tar.gz")" -C "$stage"
+  FLOOR="$(max_minos "$stage")"
 }
 
 case "$id" in
   apache|nginx|php|mysql|postgres|redis|node|mailpit) "build_$id" ;;
   *) echo "Unknown id: $id"; exit 2 ;;
 esac
-package "$id" "$version" "$stage"
+if [ -n "$FLOOR" ] && [ "$(printf '%s
+%s
+' "$FLOOR" "$MACOSX_DEPLOYMENT_TARGET" | sort -V | tail -1)" = "$MACOSX_DEPLOYMENT_TARGET" ]; then
+  FLOOR=""   # runs on the normal floor after all
+fi
+package "$id" "$version" "$stage" ${FLOOR:+"$FLOOR"}
