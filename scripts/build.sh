@@ -75,10 +75,18 @@ build_php() {
     chmod +x "$spc_dir/spc"
   fi
   rm -rf "$spc_dir/buildroot" "$spc_dir/source/php-src"
+  # phpmicro's patches are for its "micro" program, which isn't built here. Its cli_checks patch
+  # stopped applying with the November 2026 PHP releases, so only the macOS iconv fix is kept.
+  # PHP 8.6 and newer have no such patch yet (the tool would pick the one for 8.0): ours does it.
+  local micro_patches="macos_iconv" iconv_script=""
+  case "$line" in
+    8.[0-5]) ;;
+    *) micro_patches=""; iconv_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/php-macos-iconv.php" ;;
+  esac
   # static-php-cli sets its own compiler flags; ours would be mixed into every library it builds.
   # On failure its own log has the real reason, so the end of it is printed.
-  (cd "$spc_dir" && unset CFLAGS CXXFLAGS LDFLAGS && ./spc doctor --auto-fix && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
-    && ./spc build "$PHP_EXTENSIONS" --build-cli --build-fpm --build-cgi) || {
+  (cd "$spc_dir" && unset CFLAGS CXXFLAGS LDFLAGS && export SPC_MICRO_PATCHES="$micro_patches" && ./spc doctor --auto-fix && ./spc download --with-php="$version" --for-extensions="$PHP_EXTENSIONS" --prefer-pre-built \
+    && ./spc build "$PHP_EXTENSIONS" --build-cli --build-fpm --build-cgi ${iconv_script:+-P "$iconv_script"}) || {
     echo "--- static-php-cli shell log (end) ---"; tail -60 "$spc_dir/log/spc.shell.log" 2>/dev/null
     return 1; }
   cp "$spc_dir"/buildroot/bin/php "$spc_dir"/buildroot/bin/php-fpm "$spc_dir"/buildroot/bin/php-cgi "$stage/"
